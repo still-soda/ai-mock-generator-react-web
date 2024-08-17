@@ -18,7 +18,7 @@
 
 1. 📥 克隆项目仓库：
    ```bash
-   https://github.com/still-soda/ai-mock-generator-react-web.git
+   git clone https://github.com/still-soda/ai-mock-generator-react-web.git
    ```
 2. 📦 安装依赖：
    ```bash
