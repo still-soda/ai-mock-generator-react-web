@@ -18,7 +18,8 @@ function App() {
    }, [location]);
 
    function setView(view: string) {
-      navigate(`/${view}`);
+      setRoute(location.pathname.replace('/', ''));
+      requestAnimationFrame(() => navigate(`/${view}`));
    }
 
    return (
