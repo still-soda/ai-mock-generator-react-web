@@ -88,7 +88,8 @@ async function post<T = any>({
    header,
    retry = 10,
    interval = 1000,
-   noCache = true
+   noCache = true,
+   stream = false
 }: {
    url: string;
    params?: Dict;
@@ -97,10 +98,11 @@ async function post<T = any>({
    retry?: number;
    interval?: number;
    noCache?: boolean;
+   stream?: boolean;
 }): RequestResult<T> {
    const constructedURL = constructURL(url, params);
 
-   const res = await fetch(constructedURL, {
+   const req = fetch(constructedURL, {
       method: 'POST',
       headers: {
          'Content-Type': 'application/json',
@@ -108,7 +110,16 @@ async function post<T = any>({
       },
       body: JSON.stringify(data),
       cache: noCache ? 'no-store' : 'default',
-   })
+   });
+
+   if (stream) {
+      return {
+         data: (await req).body as any,
+         status: 200,
+      };
+   }
+
+   const res = await req
       .then(async (res) => {
          return {
             data: (await res.json()) as T,
@@ -235,4 +246,33 @@ async function del<T = any>({
    return res;
 }
 
-export { get, post, put, del, constructURL, wait, type RequestResult };
+async function stream(result: RequestResult<ReadableStream<Uint8Array>>) {
+   const reader = (await result).data?.getReader();
+   const decoder = new TextDecoder('utf-8');
+   const next = async () => {
+      if (!reader){
+         return { 
+            done: true,
+            value: ''
+         }
+      }
+      const { done, value } = await reader.read();
+      let data;
+
+      try {
+         data = JSON.parse(decoder.decode(value).substring(6));
+      } catch (e) {
+         data = { result: '' };
+      }
+
+      return {
+         done,
+         value: data.result as string
+      }
+   }
+   return {
+      next
+   }
+}
+
+export { get, post, put, del, constructURL, wait, stream, type RequestResult };

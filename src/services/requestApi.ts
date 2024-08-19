@@ -1,4 +1,4 @@
-import { post } from "../utils/request/common";
+import { post, stream } from "../utils/request/common";
 import { Data, DataItem } from "../view/UsageView";
 
 let accessToken: string | null = null;
@@ -48,7 +48,7 @@ async function requestApi({
 }: {
     data: Data,
     count: number
-}) {
+}, cb: (newStr: string) => void) {
     const accessToken = await getAccessToken();
 
     if (!accessToken) {
@@ -61,7 +61,7 @@ async function requestApi({
             .map((i: DataItem) => `"${i.name}"<${i.type}>(${i.desc})`)
             .join('') 
 
-    const { data: res } = await post<{ data: string }>({
+    const streamData = await post<ReadableStream<Uint8Array>>({
         url: uri('/generate'),
         data: {
             data: dataJSON,
@@ -69,20 +69,44 @@ async function requestApi({
         },
         header: {
             'authorization': accessToken
-        }
+        },
+        stream: true
     });
-    
-    function matchRegex(str: string, regex: RegExp) {
-        if (!str) {
-            return null;
-        }
-        const matches = Array.from(str.matchAll(regex));
-        return matches.length > 0 ? matches[0][1] : null;
+
+    if (!streamData.data) {
+        return '[ERR]获取数据失败。';
     }
 
-    return matchRegex(res!.data, /\[BEGIN\]([\s\S]*?)\[END\]/g)
-        || matchRegex(res!.data, /```json([\s\S]*?)```/g)
-        || null;
+    const res = await stream(streamData as any);
+
+    while(true) {
+        const { done, value } = await res.next();
+        let str = value;
+
+        if (done) {
+            break;
+        }
+
+        if (value.includes('N]')) {
+            str = str.substring(value.indexOf('N]') + 2);
+        } 
+        if (value.includes('[E')) {
+            str = str.substring(0, value.indexOf('[E'));
+            cb(str);
+            break;
+        } 
+
+        if (value.includes('```j')) {
+            str = str.substring(value.indexOf('```j') + 7);
+        } 
+        if (value.includes('```')) {
+            str = str.substring(0, value.indexOf('```'));
+            cb(str);
+            break;
+        }
+
+        cb(str);
+    }
 }
 
 export { requestApi };

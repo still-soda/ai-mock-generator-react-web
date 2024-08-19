@@ -85,24 +85,28 @@ app.post('/generate', urlencodedParser, async (req, res) => {
             content: prompt,
          },
       ],
+      stream: true,
    };
 
    const ret = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+         'Content-Type': 'application/json',
+      },
       body: JSON.stringify(requestBody),
-   })
-      .then((res) => {
-         return res.json();
-      })
-      .then((data) => {
-         return data.result;
-      })
-      .catch((err) => {
-         return `[BEGIN][ERR]错误：${err}[END]`;
-      });
+   });
 
-   return res.status(200).json({ data: ret });
+   const reader = ret.body.getReader();
+   const decoder = new TextDecoder('utf-8');
+
+   while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const result = decoder.decode(value, { stream: true });
+      res.write(result);
+   }
+
+   res.end();
 });
 
 app.listen(3000, () => {

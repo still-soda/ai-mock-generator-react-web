@@ -11,6 +11,7 @@ import CsDataInput from '../components/cs/DataInput';
 import generateUUID from '../utils/uuid';
 import { getApiData, requestApi } from '../services/requestApi';
 import CsLink from '../components/cs/Link';
+import { wait } from '../utils/request/common';
 
 export type DataItem = {
    name: string;
@@ -80,41 +81,65 @@ export default function UsageView() {
          closeMethod: 'manual',
       });
 
-      const result = await requestApi({ data, count });
+      let result = '';
+      let waitToShow = '';
+      let done = false;
+      let showInterval = 20;
 
-      setLoading(false);
-      setContent(result?.trim() || '');
-      requestAnimationFrame(msg.close);
-
-      if (!result || result.startsWith('[ERR]')) {
-         const noToken = !getApiData();
-         if (noToken) {
-            const onclick = () => err.close();
-            const err = message.error(
-               <CsText>
-                  你还没有完善API设置，请前往
-                  <span onClick={onclick}>
-                     <CsLink route='/settings'>
-                        <i className='fas fa-gear mr-1'></i>
-                        设置页面
-                     </CsLink>
-                  </span>
-                  设置
-               </CsText>,
-               {
-                  provideCloseBtn: true,
-                  closeMethod: 'manual',
-               }
-            );
+      const show = async () => {
+         if (waitToShow.length !== 0) {
+            result += waitToShow[0];
+            waitToShow = waitToShow.slice(1);
+         } else if (done) {
+            whenDone();
             return;
          }
-         message.error('生成失败 QAQ');
-         return;
-      } else {
-         setTimeout(() => {
-            result && message.success('生成成功 o(*￣▽￣*)ブ');
-         }, 300);
-      }
+
+         setContent(result.trim());
+         await wait(showInterval);
+         requestAnimationFrame(show);
+      };
+      requestAnimationFrame(show);
+
+      await requestApi({ data, count }, (str) => (waitToShow += str));
+
+      done = true;
+      showInterval = 2;
+
+      const whenDone = () => {
+         setLoading(false);
+         requestAnimationFrame(msg.close);
+
+         if (!result || result.startsWith('[ERR]')) {
+            const noToken = !getApiData();
+            if (noToken) {
+               const onclick = () => err.close();
+               const err = message.error(
+                  <CsText>
+                     你还没有完善API设置，请前往
+                     <span onClick={onclick}>
+                        <CsLink route='/settings'>
+                           <i className='fas fa-gear mr-1'></i>
+                           设置页面
+                        </CsLink>
+                     </span>
+                     设置
+                  </CsText>,
+                  {
+                     provideCloseBtn: true,
+                     closeMethod: 'manual',
+                  }
+               );
+               return;
+            }
+            message.error('生成失败 QAQ');
+            return;
+         } else {
+            setTimeout(() => {
+               result && message.success('生成成功 o(*￣▽￣*)ブ');
+            }, 300);
+         }
+      };
    }
 
    return (
